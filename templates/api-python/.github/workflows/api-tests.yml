@@ -1,0 +1,118 @@
+# E2E API-тесты: запуск по пушу, по кнопке (с выбором стенда) и по расписанию.
+# Стенд задаётся ТОЛЬКО через env-переменные API_TESTS_* (см. config.py):
+# несекретные значения — в Settings → Variables, секреты — в Settings → Secrets.
+#
+# Отчёт Allure публикуется на GitHub Pages с переносом history/ — так работают
+# тренды между прогонами. Разрешите Pages из ветки gh-pages в Settings → Pages.
+name: API tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Базовый URL стенда (пусто — значение из Variables/дефолт)"
+        required: false
+  schedule:
+    - cron: "0 6 * * 1-5" # будни, 06:00 UTC — регрессия на стенде
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Установка uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Установка зависимостей
+        run: |
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python -r requirements.txt
+
+      # Стенд: приоритет — ввод кнопки, затем Variables. Экспортируем только
+      # непустое значение: пустая API_TESTS_BASE_URL не «сбрасывает на дефолт»,
+      # а перекрывает .env и дефолт из config.py пустой строкой.
+      - name: Выбор стенда
+        if: inputs.base_url != '' || vars.API_TESTS_BASE_URL != ''
+        run: echo "API_TESTS_BASE_URL=${{ inputs.base_url || vars.API_TESTS_BASE_URL }}" >> "$GITHUB_ENV"
+
+      # Карантин: тесты с маркером flaky не валят регрессию —
+      # гоняйте их отдельной джобой `pytest -m flaky`, пока не стабилизируете
+      - name: Прогон e2e-тестов
+        run: PYTHONPATH=. .venv/bin/pytest -m "not flaky"
+        env:
+          API_TESTS_API_TOKEN: ${{ secrets.API_TESTS_API_TOKEN }}
+
+      # Артефакт с результатами — даже при упавших тестах (отчёт нужнее всего тогда)
+      - name: Публикация allure-results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+          retention-days: 14
+
+  # Отчёт с трендами: подтягивает history/ из прошлого отчёта на gh-pages,
+  # генерирует новый и публикует обратно. Тренды копятся сами.
+  report:
+    if: always()
+    needs: e2e
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Джоба e2e могла упасть до аплоада артефакта (например, на установке
+      # зависимостей) — тогда скачивать нечего: не валим report, а пропускаем
+      # оставшиеся шаги по outcome этого шага.
+      - name: Скачиваем allure-results
+        id: results
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+
+      # conftest (pytest_configure/pytest_sessionfinish) кладёт в allure-results
+      # categories.json и environment.properties ещё до сбора тестов. Если pytest
+      # упал на коллекции (import error), артефакт непустой, но реальных
+      # результатов в нём нет — без этой проверки на Pages ушёл бы отчёт с 0
+      # тестов и мусорным трендом. Публикуем, только если есть хотя бы один
+      # *-result.json (результат конкретного теста).
+      - name: Проверяем наличие результатов тестов
+        id: check
+        if: steps.results.outcome == 'success'
+        run: |
+          if compgen -G "allure-results/*-result.json" > /dev/null; then
+            echo "has_results=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_results=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::В allure-results нет *-result.json — отчёт не публикуется (падение на коллекции тестов?)."
+          fi
+
+      - name: Забираем прошлый отчёт (для history)
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Генерация Allure-отчёта с переносом history
+        if: steps.check.outputs.has_results == 'true'
+        uses: simple-elf/allure-report-action@v1.12
+        with:
+          allure_results: allure-results
+          allure_report: allure-report
+          gh_pages: gh-pages
+          allure_history: allure-history
+          keep_reports: 20
+
+      - name: Публикация на GitHub Pages
+        if: steps.check.outputs.has_results == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history

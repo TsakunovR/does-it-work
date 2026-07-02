@@ -1,0 +1,6 @@
+# Проверенный набор (Python 3.12)
+pytest>=8
+pytest-playwright>=0.6
+allure-pytest>=2.13
+httpx>=0.28                # подготовка данных через API
+pydantic-settings>=2.5

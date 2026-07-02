@@ -1,0 +1,11 @@
+# Проверенный набор (Python 3.12): все версии совместимы между собой
+pytest>=8
+httpx>=0.28
+pydantic[email]>=2.9      # [email] обязателен, если в моделях есть EmailStr
+pydantic-settings>=2.5
+allure-pytest>=2.13
+faker>=30
+# --- опционально ---
+# respx>=0.22             # моки httpx-запросов к внешним API
+# pytest-xdist>=3         # параллельный запуск (-n auto)
+# fastapi / flask          # только для интеграционного режима in-process

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Известные баги API (xfail)",
+    "matchedStatuses": ["skipped"],
+    "messageRegex": "(?s).*Баг API.*"
+  },
+  {
+    "name": "Расхождение контракта (Pydantic)",
+    "matchedStatuses": ["failed"],
+    "traceRegex": "(?s).*ValidationError.*"
+  },
+  {
+    "name": "Инфраструктура: сеть/таймауты",
+    "matchedStatuses": ["broken"],
+    "traceRegex": "(?s).*(Timeout|Connect|ReadError).*"
+  }
+]

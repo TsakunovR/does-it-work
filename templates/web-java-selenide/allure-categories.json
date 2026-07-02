@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Элемент не найден / условие не дождалось",
+    "matchedStatuses": ["failed", "broken"],
+    "traceRegex": "(?s).*(ElementNotFound|ElementShould|ConditionMetException|FrameNotFoundException).*"
+  },
+  {
+    "name": "Инфраструктура: браузер/WebDriver",
+    "matchedStatuses": ["broken"],
+    "traceRegex": "(?s).*(SessionNotCreatedException|WebDriverException).*"
+  },
+  {
+    "name": "Инфраструктура: сеть/таймауты API-подготовки",
+    "matchedStatuses": ["broken"],
+    "traceRegex": "(?s).*(HttpTimeoutException|HttpConnectTimeoutException|ConnectException|UnknownHostException).*"
+  }
+]

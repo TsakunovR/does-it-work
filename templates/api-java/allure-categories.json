@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Расхождение контракта (Jackson)",
+    "matchedStatuses": ["failed", "broken"],
+    "traceRegex": "(?s).*(UnrecognizedPropertyException|MismatchedInputException|JsonMappingException).*"
+  },
+  {
+    "name": "Инфраструктура: сеть/таймауты",
+    "matchedStatuses": ["broken"],
+    "traceRegex": "(?s).*(SocketTimeoutException|ConnectTimeoutException|ConnectException|UnknownHostException).*"
+  },
+  {
+    "name": "Известные баги API (карантин flaky)",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": "(?s).*Баг API.*"
+  }
+]

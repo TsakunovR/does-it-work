@@ -1,0 +1,54 @@
+# UI-тесты: кросс-браузерная матрица; стенд через env WEB_TESTS_*.
+name: WEB tests (Playwright)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Установка зависимостей и браузера
+        run: |
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python -r requirements.txt
+          .venv/bin/playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Прогон UI-тестов
+        # Экспортируем каждую переменную только при непустом значении:
+        # пустой env перекрыл бы дефолты из config.py (gotcha pydantic-settings)
+        env:
+          CI_BASE_URL: ${{ vars.WEB_TESTS_BASE_URL }}
+          CI_API_URL: ${{ vars.WEB_TESTS_API_URL }}
+          CI_SECRET_CODE: ${{ secrets.WEB_TESTS_SECRET_CODE }}
+        run: |
+          if [ -n "$CI_BASE_URL" ]; then export WEB_TESTS_BASE_URL="$CI_BASE_URL"; fi
+          if [ -n "$CI_API_URL" ]; then export WEB_TESTS_API_URL="$CI_API_URL"; fi
+          if [ -n "$CI_SECRET_CODE" ]; then export WEB_TESTS_SECRET_CODE="$CI_SECRET_CODE"; fi
+          PYTHONPATH=. .venv/bin/pytest -m "not flaky" --browser ${{ matrix.browser }}
+
+      - name: Публикация allure-results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ matrix.browser }}
+          path: allure-results
+          retention-days: 14
+
+      - name: Публикация трейсов Playwright (retain-on-failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.browser }}
+          path: test-results
+          retention-days: 14
+          if-no-files-found: ignore

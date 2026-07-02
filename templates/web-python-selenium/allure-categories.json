@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Известные баги UI (xfail)",
+    "matchedStatuses": ["skipped"],
+    "messageRegex": "(?s).*Баг.*"
+  },
+  {
+    "name": "Сломанные локаторы / изменившаяся вёрстка",
+    "matchedStatuses": ["failed", "broken"],
+    "traceRegex": "(?s).*(NoSuchElementException|TimeoutException).*"
+  },
+  {
+    "name": "Инфраструктура: стенд/сеть/браузер",
+    "matchedStatuses": ["broken"],
+    "traceRegex": "(?s).*(WebDriverException|ConnectError|ConnectTimeout|ReadTimeout|RuntimeError).*"
+  }
+]

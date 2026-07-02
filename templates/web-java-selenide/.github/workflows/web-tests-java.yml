@@ -1,0 +1,53 @@
+# E2E UI-тесты (Java, Selenide): стенд задаётся только через env WEB_TESTS_* (Variables/Secrets).
+name: WEB tests (Java, Selenide)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Базовый URL стенда (пусто — значение из Variables/дефолт)"
+        required: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ubuntu-latest несёт предустановленный Chrome; Selenide/Selenium Manager
+      # сам подтянет совместимый драйвер. Headless обязателен — дисплея в раннере нет.
+      - name: Проверка Chrome
+        run: google-chrome --version
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # Пустой env перекрывает дефолт из WebConfig — экспортируем только непустые значения.
+      - name: Экспорт непустых WEB_TESTS_* в окружение
+        env:
+          IN_BASE_URL: ${{ inputs.base_url || vars.WEB_TESTS_BASE_URL }}
+          IN_API_URL: ${{ vars.WEB_TESTS_API_URL }}
+          IN_SECRET_CODE: ${{ secrets.WEB_TESTS_SECRET_CODE }}
+        run: |
+          [ -n "$IN_BASE_URL" ] && echo "WEB_TESTS_BASE_URL=$IN_BASE_URL" >> "$GITHUB_ENV"
+          [ -n "$IN_API_URL" ] && echo "WEB_TESTS_API_URL=$IN_API_URL" >> "$GITHUB_ENV"
+          [ -n "$IN_SECRET_CODE" ] && echo "WEB_TESTS_SECRET_CODE=$IN_SECRET_CODE" >> "$GITHUB_ENV"
+          echo "WEB_TESTS_HEADLESS=true" >> "$GITHUB_ENV"
+          true
+
+      - name: Прогон UI-тестов (flaky в карантине)
+        run: mvn -B test
+
+      - name: Публикация allure-results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-web-java
+          path: target/allure-results
+          retention-days: 14

@@ -1,0 +1,6 @@
+# Проверенный набор (Python 3.12)
+pytest>=8
+selenium>=4.27              # Selenium Manager сам подберёт драйвер под браузер
+allure-pytest>=2.13
+httpx>=0.28                 # подготовка данных через API
+pydantic-settings>=2.5

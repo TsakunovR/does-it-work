@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Известные баги UI (xfail)",
+    "matchedStatuses": ["skipped"],
+    "messageRegex": "(?s).*Баг.*"
+  },
+  {
+    "name": "Сломанные локаторы / изменившаяся вёрстка",
+    "matchedStatuses": ["failed", "broken"],
+    "traceRegex": "(?s).*(waiting for locator|TimeoutError|Locator expected).*"
+  },
+  {
+    "name": "Инфраструктура: стенд/сеть/браузер",
+    "matchedStatuses": ["broken"],
+    "traceRegex": "(?s).*(net::ERR|TargetClosedError|ConnectError|ConnectTimeout|ReadTimeout|RuntimeError).*"
+  }
+]
