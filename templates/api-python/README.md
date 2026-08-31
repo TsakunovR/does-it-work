@@ -79,6 +79,18 @@ jobs:
 запуск по пушу, по кнопке (с выбором стенда) и по расписанию, `allure-results`
 сохраняются артефактом.
 
+## CI в Jenkins
+
+`Jenkinsfile` в корне — declarative pipeline: параметры `BASE_URL` и `PYTEST_MARKERS`,
+токен из Jenkins Credentials (`api-tests-token`), ночная регрессия по `cron`,
+публикация Allure шагом `allure`. Падение тестов даёт **UNSTABLE**, а не FAILURE —
+иначе отчёт не соберётся именно тогда, когда он нужен. Тренды между сборками
+Allure-плагин ведёт сам, переносить `history/` вручную (как для GitHub Pages) не нужно.
+
+Что настроить в Jenkins один раз: плагины Pipeline и Allure, установка
+Allure Commandline с именем `allure` (Manage Jenkins → Tools), credential
+`api-tests-token` (Secret text).
+
 ## Отчёт Allure
 
 Результаты пишутся в `allure-results/` (настроено в `pytest.ini`):
@@ -104,6 +116,7 @@ models/                      # Pydantic-контракты ответов, extra
 utils/                       # assertions (шаги + сообщения), waiters, retry, soft
 allure-categories.json       # категории дефектов для Allure-отчёта
 .github/workflows/           # CI: e2e-прогон + Allure на GitHub Pages с трендами
+Jenkinsfile                  # CI: тот же прогон в Jenkins (параметры, Allure, UNSTABLE)
 tests/
   __init__.py                # обязателен здесь и в каждой поддиректории
   conftest.py                # фикстуры: HTTP-клиент (2 режима), фабрики faker, авто-очистка

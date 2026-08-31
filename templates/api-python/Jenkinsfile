@@ -1,0 +1,83 @@
+// Jenkins-пайплайн API-тестов (declarative).
+//
+// Плагины: Pipeline, Allure Jenkins Plugin, AnsiColor (необязателен).
+// Настройка Allure: Manage Jenkins → Tools → Allure Commandline → добавить
+// установку с именем `allure` (Install automatically). Имя должно совпадать
+// с `allure` в блоке tools ниже.
+//
+// Стенд задаётся ТОЛЬКО переменными окружения API_TESTS_* (см. config.py):
+// несекретное — параметрами сборки, секреты — Jenkins Credentials (Secret text).
+// Флагами командной строки стенд не задаём: аргументы видны в логе сборки.
+//
+// Тренды и история Allure в Jenkins работают из коробки: плагин сам переносит
+// history между сборками job'ы — ничего копировать руками не нужно
+// (в отличие от GitHub Pages, см. .github/workflows/api-tests.yml).
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BASE_URL', defaultValue: '',
+               description: 'Базовый URL стенда (пусто — дефолт из config.py)')
+        string(name: 'PYTEST_MARKERS', defaultValue: 'not flaky',
+               description: 'Выражение -m: "not flaky" — регрессия, "smoke" — быстрый прогон, "flaky" — карантин')
+    }
+
+    triggers {
+        cron('H 6 * * 1-5')   // будни, утренняя регрессия
+    }
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    tools {
+        allure 'allure'
+    }
+
+    environment {
+        // Токен из Jenkins Credentials (Secret text с id api-tests-token).
+        // credentials() падает, если такого credential нет: заведите его
+        // или удалите строку, если стенд не требует токена.
+        API_TESTS_API_TOKEN = credentials('api-tests-token')
+        PYTHONPATH = '.'
+    }
+
+    stages {
+        stage('Окружение') {
+            steps {
+                sh '''
+                    set -eu
+                    python3 -m venv .venv
+                    .venv/bin/pip install --quiet --upgrade pip
+                    .venv/bin/pip install --quiet -r requirements.txt
+                    .venv/bin/pytest --collect-only -q | tail -2
+                '''
+            }
+        }
+
+        stage('Тесты') {
+            steps {
+                // Пустая переменная не «сбрасывает настройку», а перекрывает дефолт
+                // пустой строкой (gotcha pydantic-settings) — экспортируем только непустое.
+                // Падение тестов = UNSTABLE, а не FAILURE: отчёт должен собраться.
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        set -eu
+                        if [ -n "${BASE_URL}" ]; then export API_TESTS_BASE_URL="${BASE_URL}"; fi
+                        .venv/bin/pytest -m "${PYTEST_MARKERS}"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            allure includeProperties: false, results: [[path: 'allure-results']]
+            archiveArtifacts artifacts: 'allure-results/**', allowEmptyArchive: true, fingerprint: false
+        }
+    }
+}

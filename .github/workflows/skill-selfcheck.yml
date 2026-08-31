@@ -1,0 +1,115 @@
+# Самопроверка скилла: шаблоны и линтер не должны протухать молча.
+#
+# Шаблоны заявлены как «проверены запуском» — эта job'а держит заявление правдой
+# на каждом коммите: api-python гоняется целиком против заглушки fixtures/stub-api,
+# остальные ветки минимум собираются/коллектятся, а линтер проверяется с обеих
+# сторон — чист на эталонах и находит все правила на fixtures/bad-tests.
+name: Self-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linter:
+    name: Линтер качества тестов
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Эталонные шаблоны обязаны проходить собственный чек-лист без единой находки,
+      # включая low: иначе скилл учит тому, чего сам не выполняет.
+      - name: Шаблоны чисты
+        run: |
+          for template in templates/*/; do
+            echo "--- $template"
+            python scripts/review_tests.py "$template" --fail-on low
+          done
+
+      # Обратная сторона: линтер, который ничего не находит, бесполезен.
+      # Проверяем, что сработало каждое правило из expected-rules.txt.
+      - name: Линтер находит все свои правила
+        run: |
+          # --fail-on none: находки здесь ожидаемы, ненулевой код возврата уронил бы шаг
+          python scripts/review_tests.py fixtures/bad-tests --json --fail-on none > /tmp/findings.json
+          python - <<'PY'
+          import json, pathlib, sys
+          found = {f["rule"] for f in json.load(open("/tmp/findings.json"))}
+          expected = set(pathlib.Path("fixtures/bad-tests/expected-rules.txt").read_text().split())
+          missing = sorted(expected - found)
+          if missing:
+              sys.exit(f"Правила не сработали на fixtures/bad-tests: {missing}")
+          print(f"Все {len(expected)} правил сработали")
+          PY
+
+  api-python:
+    name: api-python против заглушки
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Поднимаем заглушку API
+        run: |
+          pip install -r fixtures/stub-api/requirements.txt
+          (cd fixtures/stub-api && python -m uvicorn main:app --port 8077 &)
+          for i in $(seq 30); do
+            curl -sf http://127.0.0.1:8077/health && break
+            sleep 1
+          done
+
+      - name: Прогон шаблона целиком
+        working-directory: templates/api-python
+        env:
+          API_TESTS_BASE_URL: http://127.0.0.1:8077
+          PYTHONPATH: .
+        run: |
+          pip install -r requirements.txt
+          pytest -q
+
+  collect:
+    name: Коллекция python-шаблонов
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template: [web-python-playwright, web-python-selenium]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Браузеры не ставим: цель шага — поймать сломанные импорты, синтаксис
+      # и конфликты версий, а не прогнать UI (для UI нужен живой стенд).
+      - name: Коллекция тестов
+        working-directory: templates/${{ matrix.template }}
+        run: |
+          pip install -r requirements.txt
+          PYTHONPATH=. pytest --collect-only -q
+
+  java:
+    name: Компиляция java-шаблонов
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template: [api-java, web-java-selenide]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: mvn test-compile
+        working-directory: templates/${{ matrix.template }}
+        run: mvn -B -ntp test-compile

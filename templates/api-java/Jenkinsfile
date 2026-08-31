@@ -1,0 +1,75 @@
+// Jenkins-пайплайн API-тестов на Java (declarative).
+//
+// Плагины: Pipeline, Allure Jenkins Plugin. Инструменты (Manage Jenkins → Tools):
+// JDK с именем `jdk21`, Maven с именем `maven3`, Allure Commandline с именем `allure`.
+// Имена в блоке tools ниже должны совпадать с именами установок в Jenkins.
+//
+// Стенд — только через env API_TESTS_* (см. TestConfig): dotenv в Java-ветке нет.
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BASE_URL', defaultValue: '', description: 'Базовый URL стенда (пусто — дефолт из TestConfig)')
+        choice(name: 'SCOPE', choices: ['regression', 'smoke', 'flaky'],
+               description: 'regression — всё кроме карантина (excludedGroups=flaky из pom.xml), smoke — быстрый набор, flaky — прогон карантина')
+    }
+
+    triggers {
+        cron('H 6 * * 1-5')
+    }
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    tools {
+        jdk 'jdk21'
+        maven 'maven3'
+        allure 'allure'
+    }
+
+    environment {
+        // credentials() падает, если такого credential нет в Jenkins:
+        // заведите Secret text с этим id или удалите строку, если секрет не нужен.
+        API_TESTS_ADMIN_EMAIL = credentials('api-tests-admin-email')
+        API_TESTS_ADMIN_PASSWORD = credentials('api-tests-admin-password')
+    }
+
+    stages {
+        stage('Сборка') {
+            steps {
+                sh 'mvn -B -ntp test-compile'
+            }
+        }
+
+        stage('Тесты') {
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    // Пустая переменная перекрыла бы дефолт TestConfig пустой строкой
+                    // (env() лечит только blank, но полагаться на это в CI не стоит).
+                    sh '''
+                        set -eu
+                        if [ -n "${BASE_URL}" ]; then export API_TESTS_BASE_URL="${BASE_URL}"; fi
+                        case "${SCOPE}" in
+                          smoke) mvn -B -ntp test -Dgroups=smoke ;;
+                          # Карантин гоняем отдельной сборкой: снимаем исключение из pom.xml
+                          # и берём только flaky. Красный результат здесь — не регрессия.
+                          flaky) mvn -B -ntp test -DexcludedGroups= -Dgroups=flaky ;;
+                          *)     mvn -B -ntp test ;;
+                        esac
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: true
+            allure includeProperties: false, results: [[path: 'target/allure-results']]
+        }
+    }
+}

@@ -77,6 +77,16 @@ allure-categories.json          # категории падений для Allur
   (см. `createBooking` в `BookingLifecycleTests`).
 - Теги = маркеры python-каркаса; severity — `@Severity(SeverityLevel...)`.
 
+## CI в Jenkins
+
+`Jenkinsfile` в корне: параметр `BASE_URL`, параметр `SCOPE`
+(`regression` — всё кроме карантина, `smoke`, `flaky` — отдельный прогон карантина
+со снятым `excludedGroups`), креды админа из Credentials, `junit` + `allure`
+в `post { always }`, падение тестов = UNSTABLE.
+
+Настроить в Jenkins один раз: инструменты с именами `jdk21`, `maven3`, `allure`
+(Manage Jenkins → Tools) — имена должны совпадать с блоком `tools` в `Jenkinsfile`.
+
 ## Gotchas (найдены при реальном прогоне)
 
 - **Спека из `RequestSpecBuilder.build()` — «незапущенная»**: вызов `.post()/.get()`

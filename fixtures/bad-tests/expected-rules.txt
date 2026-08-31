@@ -1,0 +1,15 @@
+no-assert
+weak-assert
+sleep
+http-in-test
+networkidle
+fragile-xpath
+secret
+hardcoded-url
+hardcoded-id
+weak-contract
+xfail-not-strict
+no-severity
+quarantine-without-debt
+shared-state
+missing-init
