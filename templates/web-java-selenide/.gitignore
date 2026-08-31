@@ -3,3 +3,6 @@ target/
 *.iml
 .DS_Store
 build/
+
+# логи scripts/flake_hunt.sh
+.flake-hunt/

@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 allure-results/
 allure-report/
+
+# логи scripts/flake_hunt.sh
+.flake-hunt/
