@@ -89,6 +89,13 @@ allure-categories.json      # категории падений для Allure-о
 - Предупреждения `Unable to find CDP implementation` в логах — косметика
   (версия Chrome новее селениумовского CDP-маппинга), на тесты не влияют.
 
+## CI в Jenkins
+
+`Jenkinsfile` в корне: параметры `BASE_URL` / `API_URL` / `SCOPE`, секрет
+`web-tests-secret-code`, `WEB_TESTS_HEADLESS=true`, `junit` + `allure` в `post`.
+Инструменты Jenkins — `jdk21`, `maven3`, `allure`. Браузер надёжнее брать
+из контейнера `selenium/standalone-chrome` с `--shm-size=2g`.
+
 ## Gotchas (найдены при реальном прогоне)
 
 - **Разведайте DOM до написания Page Object'ов**: откройте живое приложение

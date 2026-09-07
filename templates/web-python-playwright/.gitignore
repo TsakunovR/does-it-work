@@ -6,3 +6,6 @@ __pycache__/
 allure-results/
 test-results/
 .DS_Store
+
+# логи scripts/flake_hunt.sh
+.flake-hunt/

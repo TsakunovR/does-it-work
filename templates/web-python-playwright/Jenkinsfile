@@ -1,0 +1,77 @@
+// Jenkins-пайплайн UI-тестов на Playwright (declarative).
+//
+// Плагины: Pipeline, Allure Jenkins Plugin. Allure Commandline — установка
+// с именем `allure` (Manage Jenkins → Tools).
+//
+// Браузеры: playwright install --with-deps требует прав на установку системных
+// пакетов. На «голом» агенте это обычно недоступно — тогда либо снимите
+// --with-deps (браузеры ставятся в ~/.cache/ms-playwright, зависимости должны
+// быть предустановлены), либо гоняйте job в контейнере:
+//
+//   agent { docker { image 'mcr.microsoft.com/playwright/python:v1.49.0-noble' } }
+//
+// Контейнер — предпочтительный вариант: он же убирает класс флака
+// «локально зелёный, в CI красный из-за версии браузера».
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BASE_URL', defaultValue: '', description: 'URL стенда (пусто — дефолт из config.py)')
+        string(name: 'API_URL', defaultValue: '', description: 'URL API того же стенда (логин и подготовка данных)')
+        choice(name: 'BROWSER', choices: ['chromium', 'firefox', 'webkit'], description: 'Браузер прогона')
+        string(name: 'PYTEST_MARKERS', defaultValue: 'not flaky', description: 'Выражение -m')
+    }
+
+    options {
+        timestamps()
+        timeout(time: 45, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    tools {
+        allure 'allure'
+    }
+
+    environment {
+        // credentials() падает, если такого credential нет в Jenkins:
+        // заведите Secret text с этим id или удалите строку, если секрет не нужен.
+        WEB_TESTS_SECRET_CODE = credentials('web-tests-secret-code')
+        PYTHONPATH = '.'
+    }
+
+    stages {
+        stage('Окружение') {
+            steps {
+                sh '''
+                    set -eu
+                    python3 -m venv .venv
+                    .venv/bin/pip install --quiet --upgrade pip
+                    .venv/bin/pip install --quiet -r requirements.txt
+                    .venv/bin/playwright install ${BROWSER}
+                '''
+            }
+        }
+
+        stage('Тесты') {
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        set -eu
+                        if [ -n "${BASE_URL}" ]; then export WEB_TESTS_BASE_URL="${BASE_URL}"; fi
+                        if [ -n "${API_URL}" ]; then export WEB_TESTS_API_URL="${API_URL}"; fi
+                        .venv/bin/pytest -m "${PYTEST_MARKERS}" --browser ${BROWSER}
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            allure includeProperties: false, results: [[path: 'allure-results']]
+            // Трейсы/скриншоты падений: без них разбор красного прогона в CI — гадание
+            archiveArtifacts artifacts: 'test-results/**', allowEmptyArchive: true
+        }
+    }
+}

@@ -31,6 +31,15 @@ PYTHONPATH=. .venv/bin/pytest -m smoke
 - **Артефакты при падении**: скриншот + page_source в Allure (hook в conftest).
 - **Селекторы**: стабильные id → роли/атрибуты → css; хрупкие xpath запрещены.
 
+## CI в Jenkins
+
+`Jenkinsfile` в корне: параметры `BASE_URL` / `API_URL` / `PYTEST_MARKERS`,
+секрет `web-tests-secret-code` из Credentials, публикация Allure.
+
+На агенте нужен Chrome/Chromium (драйвер подберёт Selenium Manager). Надёжнее —
+контейнер `selenium/standalone-chrome` с `--shm-size=2g`: дефолтные 64 МБ `/dev/shm`
+роняют Chrome посреди прогона, и это выглядит как флак теста.
+
 ## Gotchas (найдены при реальном прогоне)
 
 - **Разведайте DOM до написания Page Object'ов**: откройте живое приложение

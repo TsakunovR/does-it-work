@@ -37,6 +37,16 @@ PYTHONPATH=. .venv/bin/pytest -m smoke             # быстрый смоук
 - **Селекторы**: стабильные id (`#login-email-input`) → роли (`get_by_role`) → css;
   хрупкие xpath по индексам запрещены.
 
+## CI в Jenkins
+
+`Jenkinsfile` в корне: параметры `BASE_URL` / `API_URL` / `BROWSER` / `PYTEST_MARKERS`,
+секрет `web-tests-secret-code` из Credentials, Allure и артефакты `test-results/`
+(трейсы падений) в `post { always }`.
+
+Браузер лучше брать из контейнера — в шапке `Jenkinsfile` показан
+`agent { docker { image 'mcr.microsoft.com/playwright/python:...' } }`. Это же
+убирает класс флака «локально зелёный, в CI красный из-за версии браузера».
+
 ## Gotchas (найдены при реальном прогоне)
 
 - **`networkidle` на SPA может не наступать никогда** (фоновые поллинги/websocket) —
